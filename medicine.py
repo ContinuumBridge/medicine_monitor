@@ -105,6 +105,7 @@ class Medicine():
                             if not betweenTimes(self.lastTime, s["start"], s["end"]):
                                 epochEnd = hourMin2Epoch(s["end"])
                                 if epochEnd - now < config["reminder_time"]:
+                                    self.cbLog("debug", "monitor. start: " + str(s["start"]) + ", end: " + str(s["end"]))
                                     msg = {"m": "alert",
                                            "a": "Remember to take your " + self.name + " by " + nicetime(epochEnd)[:5],
                                            "t": now
@@ -217,9 +218,9 @@ class App(CbApp):
         except Exception as ex:
             self.cbLog("warning", "Local config does not exist or file is corrupt. Exception: " + str(type(ex)) + str(ex.args))
         for c in config:
-            if str(config[c]).lower() in ("true", "t", "1"):
+            if str(config[c]).lower() in ("true", "t"):
                 config[c] = True
-            elif str(config[c]).lower() in ("false", "f", "0"):
+            elif str(config[c]).lower() in ("false", "f"):
                 config[c] = False
         self.cbLog("debug", "Config: " + str(json.dumps(config, indent=4)))
 

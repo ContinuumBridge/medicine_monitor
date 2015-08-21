@@ -21,7 +21,7 @@ config = {
         }
     ],
     "reminders": True,
-    "remiinder_time": 600,
+    "reminder_time": 600,
     "accel_min_change": 0.2,  # The min change in g on any axis to indicate that medicine is being taken
     "ignore_time": 30,        # Movement within this interval will not set another alert
     "data_send_delay": 1

@@ -141,6 +141,7 @@ class App(CbApp):
         self.devices = []
         self.idToName = {} 
         self.medicine = {} 
+        self.gotSensor = []
         #CbApp.__init__ MUST be called
         CbApp.__init__(self, argv)
 
@@ -167,20 +168,33 @@ class App(CbApp):
         self.client.receive(message)
 
     def onClientMessage(self, message):
-        #self.cbLog("debug", "onClientMessage, message: " + str(json.dumps(message, indent=4)))
+        self.cbLog("debug", "onClientMessage, message: " + str(json.dumps(message, indent=4)))
         global config
         if "config" in message:
             if "warning" in message["config"]:
                 self.cbLog("warning", "onClientMessage: " + str(json.dumps(message["config"], indent=4)))
             else:
                 try:
-                    config = message["config"]
-                    with open(CONFIG_FILE, 'w') as f:
-                        json.dump(config, f)
-                    self.cbLog("info", "Config updated")
+                    newConfig = message["config"]
+                    copyConfig = config.copy()
+                    copyConfig.update(newConfig)
+                    if copyConfig != config:
+                        self.cbLog("debug", "onClientMessage. Updating config from client message")
+                        config = copyConfig.copy()
+                        with open(CONFIG_FILE, 'w') as f:
+                            json.dump(config, f)
+                        self.cbLog("info", "Config updated")
+                        self.readLocalConfig()
+                        # With a new config, send init message to all connected adaptors
+                        for i in self.adtInstances:
+                            init = {
+                                "id": self.id,
+                                "appClass": self.appClass,
+                                "request": "init"
+                            }
+                            self.sendMessage(init, i)
                 except Exception as ex:
                     self.cbLog("warning", "onClientMessage, could not write to file. Type: " + str(type(ex)) + ", exception: " +  str(ex.args))
-                self.readLocalConfig()
 
     def onAdaptorData(self, message):
         #self.cbLog("debug", "onAdaptorData, message: " + str(json.dumps(message, indent=4)))
@@ -198,7 +212,10 @@ class App(CbApp):
             serviceReq = []
             for p in message["service"]:
                 if p["characteristic"] == "acceleration":
-                    self.medicine[message["id"]].gotSensor = True
+                    if self.medicine[message["id"]]:
+                        self.medicine[message["id"]].gotSensor = True
+                    else:
+                        self.gotSensor.append(message["id"])
                     serviceReq.append({"characteristic": "acceleration", "interval": 2})
             msg = {"id": self.id,
                    "request": "service",
@@ -217,11 +234,6 @@ class App(CbApp):
                 config.update(newConfig)
         except Exception as ex:
             self.cbLog("warning", "Local config does not exist or file is corrupt. Exception: " + str(type(ex)) + str(ex.args))
-        for c in config:
-            if str(config[c]).lower() in ("true", "t"):
-                config[c] = True
-            elif str(config[c]).lower() in ("false", "f"):
-                config[c] = False
         self.cbLog("debug", "Config: " + str(json.dumps(config, indent=4)))
 
     def onConfigureMessage(self, managerConfig):
@@ -245,6 +257,10 @@ class App(CbApp):
             self.medicine[a] = Medicine(self.bridge_id, idToName2[a])
             self.medicine[a].cbLog = self.cbLog
             self.medicine[a].client = self.client
+            if a in self.gotSensor:  # Caters for adaptors responding before the manager
+                self.medicine[a].gotSensor = True
+                self.gotSensor.remove(a)
+
         self.setState("starting")
 
 if __name__ == '__main__':

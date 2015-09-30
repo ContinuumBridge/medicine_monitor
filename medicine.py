@@ -52,6 +52,10 @@ class Medicine():
         self.lastReminderTime = 0
         reactor.callLater(1, self.monitor)
 
+    def setIDs(self, bridge_id, idToName):
+        self.idToName = idToName
+        self.bridge_id = bridge_id
+
     def onChange(self, timeStamp, values):
         #self.cbLog("debug", "onChange. values: " + str(values))
         try:
@@ -178,7 +182,7 @@ class App(CbApp):
                     newConfig = message["config"]
                     copyConfig = config.copy()
                     copyConfig.update(newConfig)
-                    if copyConfig != config:
+                    if copyConfig != config or not os.path.isfile(CONFIG_FILE):
                         self.cbLog("debug", "onClientMessage. Updating config from client message")
                         config = copyConfig.copy()
                         with open(CONFIG_FILE, 'w') as f:
@@ -253,10 +257,12 @@ class App(CbApp):
         self.client.onClientMessage = self.onClientMessage
         self.client.sendMessage = self.sendMessage
         self.client.cbLog = self.cbLog
+        self.client.loadSaved()
         for a in idToName2:
             self.medicine[a] = Medicine(self.bridge_id, idToName2[a])
             self.medicine[a].cbLog = self.cbLog
             self.medicine[a].client = self.client
+            self.medicine[a].setIDs(self.bridge_id, self.idToName)
             if a in self.gotSensor:  # Caters for adaptors responding before the manager
                 self.medicine[a].gotSensor = True
                 self.gotSensor.remove(a)
